@@ -58,10 +58,117 @@ class Game {
     }
 
     // arr == [2, nulll, 2, null]
-    shiftBlock(arr) {
+    shiftBlock(arr, reverse = false) {
+        let head = 0;
+        let tail = 1;
+        let incr = 1;
 
-        //arr == [4, null, null, null]
+        if (reverse == true) {
+            head = arr.length - 1;
+            tail = head - 1;
+            incr = -1;
+        }
+
+        while (0 <= tail && tail < arr.length) {
+            if (arr[tail] == null) {
+                tail += incr;
+            } else {
+                if (arr[head] == null) {
+                    arr[head] = arr[tail];
+                    arr[tail] = null;
+                    tail += incr
+                } else if (arr[head] == arr[tail]) {
+                    arr[head] = arr[head] * 2;
+                    arr[tail] = null;
+                    head += incr;
+                    tail += incr;
+                } else {
+                    head += incr;
+                    if (head == tail) {
+                        tail += incr;
+                    }
+                }
+            }
+        }
+        return arr;
     }
+
+    // command in ['left', 'right', 'up', 'down']
+    advance(command) {
+        let reverse = (command == 'right' || command == 'down')
+        // [
+        //    [0,1], [0,3] 从0，1挪到了0，3
+        // ]
+        let moves = [[]];
+
+        if (command == 'left' || command == 'right') {
+            for (let i = 0; i < GAME_SIZE; i++) {
+                this.shiftBlock(this.data[i], reverse);
+            }
+        } else if (command == 'up' || command == 'down') {
+            for (let j = 0; j < GAME_SIZE; j++) {
+                let tmp = [];
+                for (let i = 0; i < GAME_SIZE; i++) {
+                    tmp.push(this.data[i][j]);
+                }
+                this.shiftBlock(tmp, reverse);
+                for (let i = 0; i < GAME_SIZE; i++) {
+                    this.data[i][j] = tmp[i];
+                }
+            }
+        }
+        this.generateNewBlock();
+    }
+}
+
+class Test {
+    static compareArray(arr1, arr2) {
+        if (arr1.length != arr2.length) {
+            return false;
+        }
+        for (let i = 0; i < arr1.length; i++) {
+            if (arr1[i] != arr2[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    static test_shiftBlock() {
+        let gameTest = new Game();
+
+        let testCases = [
+            [[2, 2, 2, 2], [4, 4, null, null]],
+            [[2, 2, null, 2], [4, 2, null, null]],
+            [[4, 2, null, 2], [4, 4, null, null]],
+            [[2, 4, null, 8], [2, 4, 8, null]],
+            [[null, null, null, null], [null, null, null, null]],
+            [[null, 4, 4 ,8], [8, 8, null, null]],
+        ]
+
+        let errFlag = false;
+        for (let test of testCases) {
+            for (let reverse of [true, false]) {
+                let input = test[0].slice();
+                let result = test[1].slice();
+                if (reverse == true) {
+                    input.reverse();
+                    result.reverse();
+                }
+                gameTest.shiftBlock(input, reverse)
+                if (!Test.compareArray(input, result)) {
+                    errFlag = true;
+                    console.log("Error!");
+                }
+            }
+        }
+
+        if (!errFlag) {
+            console.log("Pass!");
+        }
+    }
+
+
 }
 
 // ---------------------------------------------- VIEW 视图 ----------------------------------------------
@@ -125,3 +232,16 @@ var container = document.getElementById('game-container');
 var game = new Game();
 var view = new View(game, container);
 view.drawGame();
+
+document.onkeydown = function(event) {
+    if (event.key == 'ArrowLeft') {
+        game.advance('left');
+    } else if (event.key == 'ArrowRight') {
+        game.advance('right');
+    } else if (event.key == 'ArrowUp') {
+        game.advance('up');
+    } else if (event.key == 'ArrowDown') {
+        game.advance('down');
+    }
+    view.drawGame();
+}
