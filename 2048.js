@@ -4,15 +4,19 @@ SPAN_FONT_SIZE = 'xxx-large';
 SPAN_FONT_FAMILY = 'Courier';
 
 BLOCK_SIZE = 120;
-BLOCK_PLACEHOLDER_COLOR = '#555555';
-BLOCK_BACKGROUND_COLOR = '#664455';
+BLOCK_PLACEHOLDER_COLOR = '555555';
+BLOCK_BACKGROUND_COLOR = '664455';
 
 CANVAS_SIZE = 600;
-CANVAS_BACKGROUNDCOLOR = '#333333';
+CANVAS_BACKGROUNDCOLOR = '333333';
 
 ASLE_WIDTH = (CANVAS_SIZE - 4 * BLOCK_SIZE) / 5;
 
 GAME_SIZE = 4;
+
+FRAME_PER_SECOND = 30;
+ANIMATION_LAST_TIME = 0.15;
+
 
 // ---------------------------------------------- Global Utility ---------------------------------------------- 
 randInt = function(a, b) {
@@ -62,6 +66,8 @@ class Game {
         let head = 0;
         let tail = 1;
         let incr = 1;
+        let moves = [];
+        let points = 0;
 
         if (reverse == true) {
             head = arr.length - 1;
@@ -76,10 +82,13 @@ class Game {
                 if (arr[head] == null) {
                     arr[head] = arr[tail];
                     arr[tail] = null;
-                    tail += incr
+                    moves.push([tail, head]);
+                    tail += incr;
                 } else if (arr[head] == arr[tail]) {
                     arr[head] = arr[head] * 2;
                     arr[tail] = null;
+                    points += arr[head];
+                    moves.push([tail, head]);
                     head += incr;
                     tail += incr;
                 } else {
@@ -90,20 +99,24 @@ class Game {
                 }
             }
         }
-        return arr;
+        return {
+            'moves': moves,
+            'points': points,
+        }
     }
 
     // command in ['left', 'right', 'up', 'down']
     advance(command) {
         let reverse = (command == 'right' || command == 'down')
-        // [
-        //    [0,1], [0,3] 从0，1挪到了0，3
-        // ]
-        let moves = [[]];
+        let moves = [];
+        let points = 0;
 
         if (command == 'left' || command == 'right') {
             for (let i = 0; i < GAME_SIZE; i++) {
-                this.shiftBlock(this.data[i], reverse);
+                let result = this.shiftBlock(this.data[i], reverse);
+                for (let move of result['moves']) {
+                    moves.push([[i, move[0]], [i, move[1]]]);
+                }
             }
         } else if (command == 'up' || command == 'down') {
             for (let j = 0; j < GAME_SIZE; j++) {
@@ -111,13 +124,21 @@ class Game {
                 for (let i = 0; i < GAME_SIZE; i++) {
                     tmp.push(this.data[i][j]);
                 }
-                this.shiftBlock(tmp, reverse);
+                let result = this.shiftBlock(tmp, reverse);
+                for (let move of result['moves']) {
+                    moves.push([[move[0], j], [move[1], j]]);
+                }
                 for (let i = 0; i < GAME_SIZE; i++) {
                     this.data[i][j] = tmp[i];
                 }
             }
         }
-        this.generateNewBlock();
+
+        if (moves.length != 0) {
+            this.generateNewBlock();
+        }
+
+        return moves;
     }
 }
 
@@ -167,14 +188,13 @@ class Test {
             console.log("Pass!");
         }
     }
-
-
 }
 
 // ---------------------------------------------- VIEW 视图 ----------------------------------------------
 class View {
     constructor(game, container) {
         this.game = game;
+        this.blocks = [];
         this.container = container;
         this.initializeContainer();
     }
@@ -185,16 +205,62 @@ class View {
         this.container.style.backgroundColor = CANVAS_BACKGROUNDCOLOR;
         this.container.style.position = 'relative';
         this.container.style.display = 'inline-block';
+        this.container.style.borderRadius = '10px';
+        this.container.style.zIndex = 1;
+    }
+
+    gridToPosition(i, j) {
+        let top = ASLE_WIDTH + i * (ASLE_WIDTH + BLOCK_SIZE);
+        let left = ASLE_WIDTH + j * (ASLE_WIDTH + BLOCK_SIZE);
+        return [top, left];
+    }
+
+    animate(moves) {
+        this.doFrame(moves, 0, ANIMATION_LAST_TIME);
+    }
+
+    // draw a singel frame
+    doFrame(moves, currTime, totalTime) {
+        if (currTime < totalTime) {
+            // Draw animation
+            setTimeout(() => {
+                this.doFrame(moves, currTime + 1 / FRAME_PER_SECOND, totalTime);
+            }, 1 / FRAME_PER_SECOND * 1000);
+
+            for (let move of moves) {
+                // moves -> [[start[i, j], end[i, j]], ...]
+                // move -> [start[i, j], end[i, j]]
+                let block = this.blocks[move[0][0]][move[0][1]];
+
+                let origin = this.gridToPosition(move[0][0], move[0][1]);
+                let destination = this.gridToPosition(move[1][0], move[1][1]);
+                let currPosition = [
+                    origin[0] + currTime / totalTime * (destination[0] - origin[0]),
+                    origin[1] + currTime / totalTime * (destination[1] - origin[1])
+                ]
+
+                block.style.top = currPosition[0];
+                block.style.left = currPosition[1];
+            }
+        } else {
+            view.drawGame();
+        }
     }
 
     drawGame() {
+        this.container.innerHTML = '';
+        this.blocks = [];
         for (let i = 0; i < GAME_SIZE; i++) {
+            let tmp = [];
             for (let j = 0; j < GAME_SIZE; j++) {
                 this.drawBackgroundBlock(i, j, BLOCK_PLACEHOLDER_COLOR);
+                let block = null; 
                 if (this.game.data[i][j]) {
-                    this.drawBlock(i, j, this.game.data[i][j]);
+                    block = this.drawBlock(i, j, this.game.data[i][j]);
                 }
+                tmp.push(block);
             }
+            this.blocks.push(tmp);
         }
     }
 
@@ -207,8 +273,11 @@ class View {
         block.style.height = BLOCK_SIZE;
         block.style.top = ASLE_WIDTH + i * (ASLE_WIDTH + BLOCK_SIZE);
         block.style.left = ASLE_WIDTH + j * (ASLE_WIDTH + BLOCK_SIZE);
+        block.style.borderRadius = '5px';
+        block.style.zIndex = 3;
 
         this.container.append(block);
+
         return block;
     }
 
@@ -224,6 +293,9 @@ class View {
         span.style.fontWeight = SPAN_FONT_WEIGHT;
 
         block.appendChild(span);
+        block.style.zIndex = 5;
+
+        return block;
     }
 }
 
@@ -234,14 +306,19 @@ var view = new View(game, container);
 view.drawGame();
 
 document.onkeydown = function(event) {
+    let moves = null; 
+
     if (event.key == 'ArrowLeft') {
-        game.advance('left');
+        moves = game.advance('left');
     } else if (event.key == 'ArrowRight') {
-        game.advance('right');
+        moves = game.advance('right');
     } else if (event.key == 'ArrowUp') {
-        game.advance('up');
+        moves = game.advance('up');
     } else if (event.key == 'ArrowDown') {
-        game.advance('down');
+        moves =  game.advance('down');
     }
-    view.drawGame();
+
+    if (moves) {
+        view.animate(moves);
+    }
 }
